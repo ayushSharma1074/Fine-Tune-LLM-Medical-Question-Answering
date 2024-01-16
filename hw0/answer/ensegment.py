@@ -62,7 +62,10 @@ def datafile(name, sep='\t'):
             (key, value) = line.split(sep)
             yield (key, value)
 
-def avoid_
+# adding the unknown word probability estimation function
+def avoid_long_words(word, N):
+    "Estimate the probability of an unknown word."    
+    return 10./(N * 10**len(word))
 
 if __name__ == '__main__':
     optparser = optparse.OptionParser()
@@ -76,7 +79,8 @@ if __name__ == '__main__':
 
     sys.setrecursionlimit(10**6)
 
-    Pw = Pdist(data=datafile(opts.counts1w))
+    Pw = Pdist(data=datafile(opts.counts1w), missingfn= avoid_long_words)
+
     segmenter = Segment(Pw)
     with open(opts.input) as f:
         for line in f:
