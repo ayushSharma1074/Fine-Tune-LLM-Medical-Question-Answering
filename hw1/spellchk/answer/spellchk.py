@@ -1,7 +1,9 @@
 from transformers import pipeline
+from Levenshtein import distance
 import logging, os, csv
 
-fill_mask = pipeline('fill-mask', model='distilbert-base-uncased') 
+# use "fill-mask" task and with an pre-trained DistilBERT model with uncased text
+fill_mask = pipeline('fill-mask', model='distilbert-base-uncased')
 mask = fill_mask.tokenizer.mask_token
 
 def get_typo_locations(fh):
@@ -14,9 +16,14 @@ def get_typo_locations(fh):
             line[1].split()
         )
 
+######### input a typo but does not use it ############
 def select_correction(typo, predict):
-    # return the most likely prediction for the mask token
-    return predict[0]['token_str']
+    recommended_words = [p['token_str'] for p in predict]
+    levenshtein_distances = [distance(typo, word) for word in recommended_words]
+    # find the word with smallest edit distance, if there are multiple same values
+    # return the one with the highest score i.e. the smallest predict index
+    index = levenshtein_distances.index(min(levenshtein_distances))
+    return predict[index]['token_str']
 
 def spellchk(fh):
     for (locations, sent) in get_typo_locations(fh):
@@ -24,7 +31,7 @@ def spellchk(fh):
         for i in locations:
             # predict top_k replacements only for the typo word at index i
             predict = fill_mask(
-                " ".join([ sent[j] if j != i else mask for j in range(len(sent)) ]), 
+                " ".join([ sent[j] if j != i else mask for j in range(len(sent)) ]), # replace typo with a mask
                 top_k=20
             )
             logging.info(predict)
