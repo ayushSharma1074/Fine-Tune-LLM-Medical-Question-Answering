@@ -1,0 +1,4 @@
+Implemented the code of method 3: Handle the upper case in the front of the sentence.
+Tried other alternative methods like：
+  Tried creating a combined weighted  score of edit distance and model’s scoreto improve the task performance.
+Wrote part of the report.
