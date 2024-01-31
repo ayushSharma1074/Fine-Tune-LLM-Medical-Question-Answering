@@ -42,8 +42,8 @@ def select_correction(typo, predict):
     #Approach 3
     recommended_words = [p['token_str'] for p in predict]
     # Setting inf as the distance value when edit distance is 0.
-    levenshtein_distances = [float('inf') if distance(typo, word_tup[0])==0  
-                             else distance(typo, word_tup[0]) for word_tup in recommended_words]
+    levenshtein_distances = [float('inf') if distance(typo, word_tup)==0  
+                             else distance(typo, word_tup) for word_tup in recommended_words]
     # find the word with smallest edit distance, if there are multiple same values
     # return the one with the highest score i.e. the smallest predict index
     index = levenshtein_distances.index(min(levenshtein_distances))
