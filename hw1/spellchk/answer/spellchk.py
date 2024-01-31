@@ -17,12 +17,33 @@ def get_typo_locations(fh):
         )
 
 def select_correction(typo, predict):
-    recommended_words = [p['token_str'] for p in predict]
-    levenshtein_distances = [distance(typo, word) for word in recommended_words]
-    # find the word with smallest edit distance, if there are multiple same values
-    # return the one with the highest score i.e. the smallest predict index
-    index = levenshtein_distances.index(min(levenshtein_distances))
-    return predict[index]['token_str']
+
+    # Approach 1
+    # recommended_words = [p['token_str'] for p in predict]
+    # levenshtein_distances = [distance(typo, word) for word in recommended_words]
+    
+    # # find the word with smallest edit distance, if there are multiple same values
+    # # return the one with the highest score i.e. the smallest predict indx
+    
+    # index = levenshtein_distances.index(min(levenshtein_distances))
+    # return predict[index]['token_str']
+
+    # Approach 2
+    # calculate the edit distance between typo and token_str
+    predict = [{**p, 'ldis': distance(typo, p['token_str'])} for p in predict]
+    # keep the predict if the distance is not 0
+    filter_predict = list(filter(filter_p, predict))
+    # sort the predict and select the closer distance
+    # if the distances are equal, then choose predict with the higher score
+    sort_predict = sorted(filter_predict, key=sorting_k)
+    return sort_predict[0]['token_str']
+
+def filter_p(p):
+    return p['ldis'] != 0
+
+def sorting_k(p):
+    res = (p['ldis'], -p['score'])
+    return res
 
 def spellchk(fh):
     for (locations, sent) in get_typo_locations(fh):
@@ -31,7 +52,7 @@ def spellchk(fh):
             # predict top_k replacements only for the typo word at index i
             predict = fill_mask(
                 " ".join([ sent[j] if j != i else mask for j in range(len(sent)) ]), # replace typo with a mask
-                top_k=1000
+                top_k=3000
             )
             logging.info(predict)
             spellchk_sent[i] = select_correction(sent[i], predict)
