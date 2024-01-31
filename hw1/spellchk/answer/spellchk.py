@@ -30,13 +30,24 @@ def select_correction(typo, predict):
 
     # Approach 2
     # calculate the edit distance between typo and token_str
-    predict = [{**p, 'ldis': distance(typo, p['token_str'])} for p in predict]
+    # predict = [{**p, 'ldis': distance(typo, p['token_str'])} for p in predict]
     # keep the predict if the distance is not 0
-    filter_predict = list(filter(filter_p, predict))
+    # filter_predict = list(filter(filter_p, predict))
     # sort the predict and select the closer distance
     # if the distances are equal, then choose predict with the higher score
-    sort_predict = sorted(filter_predict, key=sorting_k)
-    return sort_predict[0]['token_str']
+    # sort_predict = sorted(filter_predict, key=sorting_k)
+    # return sort_predict[0]['token_str']
+
+    
+    #Approach 3
+    recommended_words = [p['token_str'] for p in predict]
+    # Setting inf as the distance value when edit distance is 0.
+    levenshtein_distances = [float('inf') if distance(typo, word_tup[0])==0  else distance(typo, word_tup[0]) for word_tup in recommended_words]
+    # find the word with smallest edit distance, if there are multiple same values
+    # return the one with the highest score i.e. the smallest predict index
+    index = levenshtein_distances.index(min(levenshtein_distances))
+    return predict[index]['token_str']
+    
 
 def filter_p(p):
     return p['ldis'] != 0
@@ -55,7 +66,11 @@ def spellchk(fh):
                 top_k=3000
             )
             logging.info(predict)
-            spellchk_sent[i] = select_correction(sent[i], predict)
+        # Added a condition to change the case of the first character of the word when the index of the word being updated is 0 i.e it is the first word of the sentence.             
+            correct_word = select_correction(sent[i], predict)
+            if (i==0):
+                correct_word= correct_word.capitalize()
+            spellchk_sent[i]=correct_word  
         yield(locations, spellchk_sent)
 
 if __name__ == '__main__':
