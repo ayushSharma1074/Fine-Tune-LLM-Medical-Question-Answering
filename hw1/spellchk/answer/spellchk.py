@@ -49,12 +49,12 @@ def select_correction(typo, predict):
     index = levenshtein_distances.index(min(levenshtein_distances))
     return predict[index]['token_str']
 
-def filter_p(p):
-    return p['ldis'] != 0
+#def filter_p(p):
+    #return p['ldis'] != 0
 
-def sorting_k(p):
-    res = (p['ldis'], -p['score'])
-    return res
+#def sorting_k(p):
+    #res = (p['ldis'], -p['score'])
+    #return res
 
 def spellchk(fh):
     for (locations, sent) in get_typo_locations(fh):
