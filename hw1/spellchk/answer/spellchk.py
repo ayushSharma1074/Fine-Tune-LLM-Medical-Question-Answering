@@ -16,7 +16,6 @@ def get_typo_locations(fh):
             line[1].split()
         )
 
-######### input a typo but does not use it ############
 def select_correction(typo, predict):
     recommended_words = [p['token_str'] for p in predict]
     levenshtein_distances = [distance(typo, word) for word in recommended_words]
