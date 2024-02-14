@@ -1,0 +1,2 @@
++ Implemented optimizer changing and classification head changing.
++ Tested different learning rates, activation functions,  and different noise introduce probabilities.
