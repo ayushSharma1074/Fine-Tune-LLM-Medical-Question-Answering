@@ -183,15 +183,15 @@ def greedyDecoder(decoder, encoder_out, encoder_hidden, maxLen):
 #     print(outputs.shape)
 #     return outputs, alphas.permute(1, 2, 0)
 
-# def translate(model, input_dl):
-#     results = []
-#     for i, batch in tqdm(enumerate(input_dl)):
-#         f, e = batch
-#         output, attention = model(f)
-#         output = output.topk(1)[1]
-#         output = model.tgt2txt(output[:, 0].data).strip().split('<eos>')[0]
-#         results.append(output)
-#     return results
+def translate(model, input_dl):
+    results = []
+    for i, batch in tqdm(enumerate(input_dl)):
+        f, e = batch
+        output, attention = model(f)
+        output = output.topk(1)[1]
+        output = model.tgt2txt(output[:, 0].data).strip().split('<eos>')[0]
+        results.append(output)
+    return results
 
 # ---Model Definition etc.---
 # DO NOT MODIFY ANYTHING BELOW HERE
