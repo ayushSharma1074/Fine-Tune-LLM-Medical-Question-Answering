@@ -49,6 +49,9 @@ class hp:
     # system
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    # weight
+    weights = [0.18,0.20,0.21,0.22,0.19]   
+
 # ---YOUR ASSIGNMENT---
 # -- Step 1: Baseline ---
 # The attention module is completely broken now. Fix it using the definition
@@ -118,71 +121,6 @@ def greedyDecoder(decoder, encoder_out, encoder_hidden, maxLen):
     # print(outputs.shape)
     return outputs, alphas.permute(1, 2, 0)
 
-    '''
-    Beam search decoding
-    '''
-#     # initialization
-#     seq1_len, batch_size, _ = encoder_out.size()
-#     target_vocab_size = decoder.target_vocab_size
-
-#     outputs = torch.autograd.Variable(
-#         encoder_out.data.new(maxLen, batch_size, target_vocab_size))
-#     alphas = torch.zeros(maxLen, batch_size, seq1_len)
-#     decoder_hidden = encoder_hidden[-decoder.n_layers:]
-#     output = torch.autograd.Variable(
-#         outputs.data.new(1, batch_size).fill_(hp.sos_idx).long()) # fill with 1
-
-#     # recording the path for current frontier
-#     Path = collections.namedtuple('Path', 'dec_output score dec_hidden prev') 
-#     # top k nodes
-#     k = 15
-
-#     # initialization
-#     frontiers = []
-#     frontiers.append(Path(output, 0, decoder_hidden, []))
-#     # for each timestep perform beam search
-#     for t in range(maxLen):
-#         # for each topk words, calculate V probs
-#         hyp_scores = []
-#         dec_hidden_states = []
-#         dec_outputs = []
-
-#         # for each step check the prob of all top k frontiers
-#         for i in range(len(frontiers)):
-#             front = frontiers[i]
-#             # calculate the next step according to the prev_path
-#             dec_out, hidden, alpha = decoder(front.dec_output, encoder_out, front.dec_hidden)
-#             alphas[t] = alpha.data
-#             dec_hidden_states.append(hidden)
-#             dec_outputs.append(dec_out)
-
-#             # compute the probability of each word
-#             dec_out = dec_out.squeeze()
-#             probs = torch.log(torch.nn.functional.softmax(dec_out))
-#             hyp_scores.append(probs + front.score)
-        
-#         # find the top k scores path
-#         hyp_scores = torch.stack(hyp_scores)
-#         topk_scores = hyp_scores.reshape(-1).topk(k)
-#         indices = topk_scores[1]
-
-#         # generate next top k frontiers
-#         new_frontiers = []
-#         for i in range(k):
-#             index = indices[i] // len(hyp_scores[0])
-#             prev_front = frontiers[index]
-#             prev_path = prev_front.prev.copy()
-#             new_path = prev_path.append(dec_outputs[index])
-#             new_front = Path(dec_outputs[index], hyp_scores[index],
-#                              dec_hidden_states[index], new_path)
-#             new_frontiers.append(new_front)
-#         frontiers = new_frontiers
-    
-#     # get the final output
-#     outputs = frontiers[0].prev
-#     print(outputs.shape)
-#     return outputs, alphas.permute(1, 2, 0)
-
 def translate(model, input_dl):
     results = []
     for i, batch in tqdm(enumerate(input_dl)):
@@ -192,11 +130,112 @@ def translate(model, input_dl):
         output = model.tgt2txt(output[:, 0].data).strip().split('<eos>')[0]
         results.append(output)
     return results
+'''
+Beam search Decoder
+'''
+def BeamSearchDecoder(decoder, encoder_out, encoder_hidden, maxLen):
+    # initialization
+    seq1_len, batch_size, _ = encoder_out.size()
+    target_vocab_size = decoder.target_vocab_size
+
+    outputs = torch.autograd.Variable(
+        encoder_out.data.new(maxLen, batch_size, target_vocab_size))
+    alphas = torch.zeros(maxLen, batch_size, seq1_len)
+    decoder_hidden = encoder_hidden[-decoder.n_layers:]
+    output = torch.autograd.Variable(
+        outputs.data.new(1, batch_size).fill_(hp.sos_idx).long()) # fill with 1
+
+    # recording the path for current frontier
+    Path = collections.namedtuple('Path', 'dec_output score dec_hidden prev') 
+    # top k nodes
+    k = 15
+
+    # initialization
+    frontiers = []
+    frontiers.append(Path(output, 0, decoder_hidden, []))
+    # for each timestep perform beam search
+    for t in range(maxLen):
+        # for each topk words, calculate V probs
+        hyp_scores = []
+        dec_hidden_states = []
+        dec_outputs = []
+
+        # for each step check the prob of all top k frontiers
+        for i in range(len(frontiers)):
+            front = frontiers[i]
+            # calculate the next step according to the prev_path
+            dec_out, hidden, alpha = decoder(front.dec_output, encoder_out, front.dec_hidden)
+            alphas[t] = alpha.data
+            dec_hidden_states.append(hidden)
+            dec_outputs.append(dec_out)
+
+            # compute the probability of each word
+            dec_out = dec_out.squeeze()
+            probs = torch.log(torch.nn.functional.softmax(dec_out))
+            hyp_scores.append(probs + front.score)
+        
+        # find the top k scores path
+        hyp_scores = torch.stack(hyp_scores)
+        topk_scores = hyp_scores.reshape(-1).topk(k)
+        indices = topk_scores[1]
+
+        # generate next top k frontiers
+        new_frontiers = []
+        for i in range(k):
+            index = indices[i] // len(hyp_scores[0])
+            prev_front = frontiers[index]
+            prev_path = prev_front.prev.copy()
+            new_path = prev_path.append(dec_outputs[index])
+            new_front = Path(dec_outputs[index], hyp_scores[index],
+                             dec_hidden_states[index], new_path)
+            new_frontiers.append(new_front)
+        frontiers = new_frontiers
+    
+    # get the final output
+    outputs = frontiers[0].prev
+    print(outputs.shape)
+    return outputs, alphas.permute(1, 2, 0)
+
+'''
+Ensemble Decoder
+'''
+def ensemble_decode(models, input_dl, weights):
+    ensemble_output = []
+    
+    for i, batch in tqdm(enumerate(input_dl)):
+        f, e = batch
+        
+        # Decode using each model
+        model_outputs = []
+        for model in models:
+            output, attention = model(f)
+            output = output.topk(1)[1]
+            output = model.tgt2txt(output[:, 0].data).strip().split('<eos>')[0]
+            model_outputs.append(output)
+        
+        # Combine hypotheses using a weighted voting mechanism
+        # combined_output = vote_translation(model_outputs, weights)
+        
+        # Initialze a counter for each translation with 0 weight
+        weight = {}
+        # Calculate the total score
+        for i in range(len(model_outputs)):
+            t = model_outputs[i]
+            w = weights[i]
+            # check if the translation is already in the dict
+            if t not in weight:
+                weight[t] = 0
+            weight[t] += w
+        # Find the translation with the highest weight
+        combined_output = max(weight, key=lambda key: weight[key])
+
+        ensemble_output.append(combined_output)
+    
+    return ensemble_output
+
 
 # ---Model Definition etc.---
 # DO NOT MODIFY ANYTHING BELOW HERE
-
-
 class Encoder(nn.Module):
     """
     Encoder class
@@ -438,6 +477,14 @@ if __name__ == '__main__':
     model.to(hp.device)
     model.eval()
     # loading test dataset
+
+    # models = list(map(lambda x: Seq2Seq(build=False), range(5))
+    # for i, model_path in enumerate(["seq2seq_E045.pt","seq2seq_E046.pt","seq2seq_E047.pt","seq2seq_E048.pt","seq2seq_E049.pt"]):
+    #     models[i].load(opts.model)
+    #     models[i].to(hp.device)
+    #     models[i].eval()
+    # test_dl = loadTestData(opts.input, models[0].params['srcLex'], device=hp.device, linesToLoad=opts.num)
+    # results = ensemble_decode(models, test_dl, hp.weights)
 
     test_dl = loadTestData(opts.input, model.params['srcLex'],
                            device=hp.device, linesToLoad=opts.num)
