@@ -11,6 +11,7 @@ import os
 import re
 import sys
 import optparse
+import collections
 from tqdm import tqdm
 
 import spacy
@@ -87,11 +88,13 @@ class AttentionModule(nn.Module):
         context = (torch.sum(torch.mul(encoder_out,alpha), dim=0) ).reshape(1, 1, dim)
         return context, alpha.permute(2, 1, 0).reshape(-1,seq)
 
-
 # -- Step 2: Improvements ---
 # Implement UNK replacement, BeamSearch, translation termination criteria here,
 # you can change 'greedyDecoder' and 'translate'.
 def greedyDecoder(decoder, encoder_out, encoder_hidden, maxLen):
+    '''
+    greedy decoding
+    '''
     seq1_len, batch_size, _ = encoder_out.size()
     target_vocab_size = decoder.target_vocab_size
 
@@ -99,10 +102,11 @@ def greedyDecoder(decoder, encoder_out, encoder_hidden, maxLen):
         encoder_out.data.new(maxLen, batch_size, target_vocab_size))
     alphas = torch.zeros(maxLen, batch_size, seq1_len)
     # take what we need from encoder
+    # select the last 2 hindden states in this case
     decoder_hidden = encoder_hidden[-decoder.n_layers:]
     # start token (ugly hack)
     output = torch.autograd.Variable(
-        outputs.data.new(1, batch_size).fill_(hp.sos_idx).long())
+        outputs.data.new(1, batch_size).fill_(hp.sos_idx).long()) # fill with 1
     for t in range(maxLen):
         output, decoder_hidden, alpha = decoder(
             output, encoder_out, decoder_hidden)
@@ -111,19 +115,83 @@ def greedyDecoder(decoder, encoder_out, encoder_hidden, maxLen):
         output = torch.autograd.Variable(output.data.max(dim=2)[1])
         if int(output.data) == hp.eos_idx:
             break
+    # print(outputs.shape)
     return outputs, alphas.permute(1, 2, 0)
 
+    '''
+    Beam search decoding
+    '''
+#     # initialization
+#     seq1_len, batch_size, _ = encoder_out.size()
+#     target_vocab_size = decoder.target_vocab_size
 
-def translate(model, input_dl):
-    results = []
-    for i, batch in tqdm(enumerate(input_dl)):
-        f, e = batch
-        output, attention = model(f)
-        output = output.topk(1)[1]
-        output = model.tgt2txt(output[:, 0].data).strip().split('<eos>')[0]
-        results.append(output)
-    return results
+#     outputs = torch.autograd.Variable(
+#         encoder_out.data.new(maxLen, batch_size, target_vocab_size))
+#     alphas = torch.zeros(maxLen, batch_size, seq1_len)
+#     decoder_hidden = encoder_hidden[-decoder.n_layers:]
+#     output = torch.autograd.Variable(
+#         outputs.data.new(1, batch_size).fill_(hp.sos_idx).long()) # fill with 1
 
+#     # recording the path for current frontier
+#     Path = collections.namedtuple('Path', 'dec_output score dec_hidden prev') 
+#     # top k nodes
+#     k = 15
+
+#     # initialization
+#     frontiers = []
+#     frontiers.append(Path(output, 0, decoder_hidden, []))
+#     # for each timestep perform beam search
+#     for t in range(maxLen):
+#         # for each topk words, calculate V probs
+#         hyp_scores = []
+#         dec_hidden_states = []
+#         dec_outputs = []
+
+#         # for each step check the prob of all top k frontiers
+#         for i in range(len(frontiers)):
+#             front = frontiers[i]
+#             # calculate the next step according to the prev_path
+#             dec_out, hidden, alpha = decoder(front.dec_output, encoder_out, front.dec_hidden)
+#             alphas[t] = alpha.data
+#             dec_hidden_states.append(hidden)
+#             dec_outputs.append(dec_out)
+
+#             # compute the probability of each word
+#             dec_out = dec_out.squeeze()
+#             probs = torch.log(torch.nn.functional.softmax(dec_out))
+#             hyp_scores.append(probs + front.score)
+        
+#         # find the top k scores path
+#         hyp_scores = torch.stack(hyp_scores)
+#         topk_scores = hyp_scores.reshape(-1).topk(k)
+#         indices = topk_scores[1]
+
+#         # generate next top k frontiers
+#         new_frontiers = []
+#         for i in range(k):
+#             index = indices[i] // len(hyp_scores[0])
+#             prev_front = frontiers[index]
+#             prev_path = prev_front.prev.copy()
+#             new_path = prev_path.append(dec_outputs[index])
+#             new_front = Path(dec_outputs[index], hyp_scores[index],
+#                              dec_hidden_states[index], new_path)
+#             new_frontiers.append(new_front)
+#         frontiers = new_frontiers
+    
+#     # get the final output
+#     outputs = frontiers[0].prev
+#     print(outputs.shape)
+#     return outputs, alphas.permute(1, 2, 0)
+
+# def translate(model, input_dl):
+#     results = []
+#     for i, batch in tqdm(enumerate(input_dl)):
+#         f, e = batch
+#         output, attention = model(f)
+#         output = output.topk(1)[1]
+#         output = model.tgt2txt(output[:, 0].data).strip().split('<eos>')[0]
+#         results.append(output)
+#     return results
 
 # ---Model Definition etc.---
 # DO NOT MODIFY ANYTHING BELOW HERE
@@ -164,8 +232,8 @@ class Encoder(nn.Module):
 
         # encoder_final:  (seq_len, batch_size, hidden_dim)
         # encoder_hidden: (n_layers * num_directions, batch_size, hidden_dim)
-        return encoder_final, encoder_hidden
-
+        # here we have a stacked rnn with two sets of hidden states for each input token
+        return encoder_final, encoder_hidden 
 
 class Decoder(nn.Module):
     def __init__(self, target_vocab_size,
@@ -198,7 +266,6 @@ class Decoder(nn.Module):
             self.rnn(torch.cat([embedded, context], dim=2), decoder_hidden)
         output = self.out(torch.cat([rnn_output, context], 2))
         return output, decoder_hidden, alpha
-
 
 class Seq2Seq(nn.Module):
     def __init__(self, srcLex=None, tgtLex=None, build=True):
