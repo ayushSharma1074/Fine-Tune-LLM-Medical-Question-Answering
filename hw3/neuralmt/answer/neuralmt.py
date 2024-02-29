@@ -197,41 +197,40 @@ def greedyDecoder(decoder, encoder_out, encoder_hidden, maxLen):
 #     return results
 
 # Ensemble Decoding 
-"""
-def ensemble_decode(models, input_dl, weights):
-    ensemble_output = []
-    
-    for i, batch in tqdm(enumerate(input_dl)):
-        f, e = batch
-        
-        # Decode using each model
-        model_outputs = []
-        for model in models:
-            output, attention = model(f)
-            output = output.topk(1)[1]
-            output = model.tgt2txt(output[:, 0].data).strip().split('<eos>')[0]
-            model_outputs.append(output)
-        
-        # Combine hypotheses using a weighted voting mechanism
-        # combined_output = vote_translation(model_outputs, weights)
-        
-        # Initialze a counter for each translation with 0 weight
-        weight = {}
-        # Calculate the total score
-        for i in range(len(model_outputs)):
-            t = model_outputs[i]
-            w = weights[i]
-            # check if the translation is already in the dict
-            if t not in weight:
-                weight[t] = 0
-            weight[t] += w
-        # Find the translation with the highest weight
-        combined_output = max(weight, key=lambda key: weight[key])
 
-        ensemble_output.append(combined_output)
+# def ensemble_decode(models, input_dl, weights):
+#     ensemble_output = []
     
-    return ensemble_output
-"""
+#     for i, batch in tqdm(enumerate(input_dl)):
+#         f, e = batch
+        
+#         # Decode using each model
+#         model_outputs = []
+#         for model in models:
+#             output, attention = model(f)
+#             output = output.topk(1)[1]
+#             output = model.tgt2txt(output[:, 0].data).strip().split('<eos>')[0]
+#             model_outputs.append(output)
+        
+#         # Combine hypotheses using a weighted voting mechanism
+#         # combined_output = vote_translation(model_outputs, weights)
+        
+#         # Initialze a counter for each translation with 0 weight
+#         weight = {}
+#         # Calculate the total score
+#         for i in range(len(model_outputs)):
+#             t = model_outputs[i]
+#             w = weights[i]
+#             # check if the translation is already in the dict
+#             if t not in weight:
+#                 weight[t] = 0
+#             weight[t] += w
+#         # Find the translation with the highest weight
+#         combined_output = max(weight, key=lambda key: weight[key])
+
+#         ensemble_output.append(combined_output)
+    
+#     return ensemble_output
 
 
 # ---Model Definition etc.---
@@ -479,15 +478,15 @@ if __name__ == '__main__':
     model.to(hp.device)
     model.eval()
     # loading test dataset
-    """
-    models = list(map(lambda x: Seq2Seq(build=False), range(5))
-    for i, model_path in enumerate(["seq2seq_E045.pt","seq2seq_E046.pt","seq2seq_E047.pt","seq2seq_E048.pt","seq2seq_E049.pt"]):
-        models[i].load(opts.model)
-        models[i].to(hp.device)
-        models[i].eval()
-    test_dl = loadTestData(opts.input, models[0].params['srcLex'], device=hp.device, linesToLoad=opts.num)
-    results = ensemble_decode(models, test_dl, hp.weights)
-    """
+
+    # models = list(map(lambda x: Seq2Seq(build=False), range(5))
+    # for i, model_path in enumerate(["seq2seq_E045.pt","seq2seq_E046.pt","seq2seq_E047.pt","seq2seq_E048.pt","seq2seq_E049.pt"]):
+    #     models[i].load(opts.model)
+    #     models[i].to(hp.device)
+    #     models[i].eval()
+    # test_dl = loadTestData(opts.input, models[0].params['srcLex'], device=hp.device, linesToLoad=opts.num)
+    # results = ensemble_decode(models, test_dl, hp.weights)
+
     test_dl = loadTestData(opts.input, model.params['srcLex'],
                            device=hp.device, linesToLoad=opts.num)
     results = translate(model, test_dl)
