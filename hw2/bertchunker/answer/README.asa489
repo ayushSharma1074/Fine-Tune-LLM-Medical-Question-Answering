@@ -1,2 +1,0 @@
-- Tried using encodings from different layers of the transformer as the input to the classification head.
-- Tried freezing the weights of the transformers for the first few epochs and fine-tuning it in the later epochs.
